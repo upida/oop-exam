@@ -1,14 +1,1 @@
-T001,Mr. John Johnson,Mathematics,PhD
-T002,Ms. Parker,Physics,PhD
-T001,Mr. John Johnson,Mathematics,PhD
-T002,Ms. Parker,Physics,PhD
-T001,Mr. John Johnson,Mathematics,PhD
-T002,Ms. Parker,Physics,PhD
-T001,Mr. John Johnson,Mathematics,PhD
-T002,Ms. Parker,Physics,PhD
-T001,Mr. John Johnson,Mathematics,PhD
-T002,Ms. Parker,Physics,PhD
-T001,Mr. John Johnson,Mathematics,PhD
-T002,Ms. Parker,Physics,PhD
-T001,Mr. John Johnson,Mathematics,PhD
-T002,Ms. Parker,Physics,PhD
+T001,Sulistia,Math,Msc

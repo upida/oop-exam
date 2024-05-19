@@ -7,16 +7,6 @@
 
 using namespace std;
 
-class Score;
-class _Class;
-class Subject;
-class Person;
-class Student;
-class Teacher;
-class Schedule;
-class File;
-class School;
-
 class _Class
 {
     private:
@@ -78,18 +68,20 @@ class Person
         {
             return this->name;
         }
+
+        virtual void displayInfo() = 0;
 };
 
 class Student : public Person
 {
     private:
-        _Class _class;
+        _Class* _class;
         float average_score = 0;
         vector<Score> scores;
     public:
-        Student(string name, string id, _Class _class) : Person(id, name), _class(_class) {}
+        Student(string name, string id, _Class* _class) : Person(id, name), _class(_class) {}
 
-        _Class getClass()
+        _Class* getClass()
         {
             return this->_class;
         }
@@ -119,17 +111,22 @@ class Student : public Person
                 this->average_score = static_cast<float>(total) / scores.size();
             }
         }
+
+        void displayInfo() override
+        {
+            cout << "Student Name: " << getName() << ", ID: " << getId() << ", Class: " << _class->getTitle() << ", Average Score: " << getAverageScore() << endl;
+        }
 };
 
 class Teacher : public Person
 {
     private:
-        Subject subject;
+        Subject* subject;
         string education_level;
     public:
-        Teacher(string name, string id, Subject subject, string education_level) : Person(id, name), subject(subject), education_level(education_level) {}
+        Teacher(string name, string id, Subject* subject, string education_level) : Person(id, name), subject(subject), education_level(education_level) {}
 
-        Subject getSubject()
+        Subject* getSubject()
         {
             return this->subject;
         }
@@ -137,6 +134,11 @@ class Teacher : public Person
         string getEducationLevel()
         {
             return this->education_level;
+        }
+
+        void displayInfo() override
+        {
+            cout << "Teacher Name: " << getName() << ", ID: " << getId() << ", Subject: " << subject->getTitle() << ", Education Level: " << education_level << endl;
         }
 };
 
@@ -275,6 +277,32 @@ class File
             }
             return lines;
         }
+
+        static bool checkId(const string& filename, const string& id)
+        {
+            string filepath = "data/" + filename;
+            ifstream file(filepath);
+            if (!file.is_open())
+            {
+                cerr << "Unable to open file for reading: " << filepath << endl;
+                return false;
+            }
+
+            string line;
+            while (getline(file, line))
+            {
+                stringstream ss(line);
+                string currentId;
+                getline(ss, currentId, ',');
+                if (currentId == id)
+                {
+                    file.close();
+                    return true;
+                }
+            }
+            file.close();
+            return false;
+        }
 };
 
 struct Sort
@@ -314,21 +342,78 @@ class School
         vector<Teacher> teachers;
         vector<Schedule> schedules;
 
-        template<typename T>
-        string join(const vector<T>& vec, const string& delimiter)
-        {
-            stringstream ss;
-            for (size_t i = 0; i < vec.size(); ++i)
-            {
-                if (i != 0)
-                    ss << delimiter;
-                ss << vec[i];
-            }
-            return ss.str();
+    public:
+        School() {
+            readStudentsFromFile("students.txt");
+            readTeachersFromFile("teachers.txt");
         }
 
-    public:
-        School() {}
+        void readStudentsFromFile(const string &filename)
+        {
+            vector<string> lines = File::read(filename);
+
+            for (const auto &line : lines)
+            {
+                stringstream ss(line);
+                string id, name, classTitle;
+                getline(ss, id, ',');
+                getline(ss, name, ',');
+                getline(ss, classTitle, ',');
+
+                _Class* _class = nullptr;
+                for (_Class &check_class : classes)
+                {
+                    if (check_class.getTitle() == classTitle)
+                    {
+                        _class = &check_class;
+                        break;
+                    }
+                }
+
+                if (_class == nullptr) 
+                {
+                    _Class newClass(classTitle);
+                    classes.push_back(newClass);
+                    _class = &classes.back();
+                }
+
+                students.push_back(Student(name, id, _class));
+            }
+        }
+
+        void readTeachersFromFile(const string &filename)
+        {
+            vector<string> lines = File::read(filename);
+
+            for (const auto &line : lines)
+            {
+                stringstream ss(line);
+                string id, name, subjectTitle, educationLevel;
+                getline(ss, id, ',');
+                getline(ss, name, ',');
+                getline(ss, subjectTitle, ',');
+                getline(ss, educationLevel, ',');
+
+                Subject* subject = nullptr;
+                for (Subject &check_subject : subjects)
+                {
+                    if (check_subject.getTitle() == subjectTitle)
+                    {
+                        subject = &check_subject;
+                        break;
+                    }
+                }
+
+                if (subject == nullptr) 
+                {
+                    Subject newSubject(subjectTitle);
+                    subjects.push_back(newSubject);
+                    subject = &subjects.back();
+                }
+
+                teachers.push_back(Teacher(name, id, subject, educationLevel));
+            }
+        }
 
         vector<_Class>* getClasses()
         {
@@ -350,39 +435,129 @@ class School
             return &teachers;
         }
 
-        void addClass(const string &title)
+        void addClass()
         {
+            string title;
+            cout << "Enter class title: ";
+            cin.ignore();
+            getline(cin, title);
             classes.push_back(_Class(title));
         }
 
-        void addSubject(const string &title)
+        void addSubject()
         {
+            string title;
+            cout << "Enter subject title: ";
+            cin.ignore();
+            getline(cin, title);
             subjects.push_back(Subject(title));
         }
 
-        void addStudent(const string &name, const string &id, const string &classTitle)
+        void addStudent()
         {
-            _Class _class(classTitle);
+            string name, id, classTitle, filename = "students.txt";
+            cout << "Enter student name: ";
+            cin.ignore();
+            getline(cin, name);
+            cout << "Enter student ID: ";
+            getline(cin, id);
+
+            if(File::checkId(filename, id)) {
+                cout << "Canceling add student. Id " << id << " already exist." << endl;
+                return;
+            }
+
+            cout << "Enter class title: ";
+            getline(cin, classTitle);
+
+            _Class* _class = nullptr;
+            for (_Class &check_class : classes)
+            {
+                if (check_class.getTitle() == classTitle)
+                {
+                    _class = &check_class;
+                }
+            }
+
+            if (_class == nullptr) {
+                cout << "Canceling add student. Class " << classTitle << " not found." << endl;
+                return;
+            }
+
             students.push_back(Student(name, id, _class));
             string data = id + "," + name + "," + classTitle;
-            File::write("students.txt", data);
+            File::write(filename, data);
         }
 
-        void addTeacher(const string &name, const string &id, const string &subjectTitle, const string &educationLevel)
+        void addTeacher()
         {
-            Subject subject(subjectTitle);
+            string name, id, subjectTitle, educationLevel, filename = "teachers.txt";
+            cout << "Enter teacher name: ";
+            cin.ignore();
+            getline(cin, name);
+            cout << "Enter teacher ID: ";
+            getline(cin, id);
+
+            if(File::checkId(filename, id)) {
+                cout << "Canceling add teacher. Id " << id << " already exist." << endl;
+                return;
+            }
+
+            cout << "Enter subject title: ";
+            getline(cin, subjectTitle);
+
+            Subject* subject = nullptr;
+            for (Subject &checksubject : subjects)
+            {
+                if (checksubject.getTitle() == subjectTitle)
+                {
+                    subject = &checksubject;
+                }
+            }
+
+            if (subject == nullptr) {
+                cout << "Canceling add teacher. Subject " << subjectTitle << " not found." << endl;
+                return;
+            }
+
+            cout << "Enter education level: ";
+            getline(cin, educationLevel);
+
             teachers.push_back(Teacher(name, id, subject, educationLevel));
             string data = id + "," + name + "," + subjectTitle + "," + educationLevel;
-            File::write("teachers.txt", data);
+            File::write(filename, data);
         }
 
-        void editStudent(const string &id, const string &newName, const string &newClassTitle)
+        void editStudent()
         {
+            string id, newName, newClassTitle;
+            cout << "Enter student ID to edit: ";
+            cin.ignore();
+            getline(cin, id);
+            cout << "Enter new name: ";
+            getline(cin, newName);
+            cout << "Enter new class title: ";
+            getline(cin, newClassTitle);
+
+            _Class* _class = nullptr;
+            for (_Class &check_class : classes)
+            {
+                if (check_class.getTitle() == newClassTitle)
+                {
+                    _class = &check_class;
+                }
+            }
+
+            if (_class == nullptr) {
+                cout << "Canceling edit student. Class " << newClassTitle << " not found." << endl;
+                return;
+            }
+
             for (auto &student : students)
             {
                 if (student.getId() == id)
                 {
-                    student = Student(newName, id, _Class(newClassTitle));
+                    student = Student(newName, id, _class);
                     string data = id + "," + newName + "," + newClassTitle;
                     File::modify("students.txt", id, data);
                     return;
@@ -391,13 +566,39 @@ class School
             cerr << "Student not found with ID: " << id << endl;
         }
 
-        void editTeacher(const string &id, const string &newName, const string &newSubjectTitle, const string &newEducationLevel)
+        void editTeacher()
         {
+            string id, newName, newSubjectTitle, newEducationLevel;
+            cout << "Enter teacher ID to edit: ";
+            cin.ignore();
+            getline(cin, id);
+            cout << "Enter new name: ";
+            getline(cin, newName);
+            cout << "Enter new subject title: ";
+            getline(cin, newSubjectTitle);
+
+            Subject* subject = nullptr;
+            for (Subject &checksubject : subjects)
+            {
+                if (checksubject.getTitle() == newSubjectTitle)
+                {
+                    subject = &checksubject;
+                }
+            }
+
+            if (subject == nullptr) {
+                cout << "Canceling edit teacher. Subject " << newSubjectTitle << " not found." << endl;
+                return;
+            }
+
+            cout << "Enter new education level: ";
+            getline(cin, newEducationLevel);
+
             for (auto &teacher : teachers)
             {
                 if (teacher.getId() == id)
                 {
-                    teacher = Teacher(newName, id, Subject(newSubjectTitle), newEducationLevel);
+                    teacher = Teacher(newName, id, subject, newEducationLevel);
                     string data = id + "," + newName + "," + newSubjectTitle + "," + newEducationLevel;
                     File::modify("teachers.txt", id, data);
                     return;
@@ -406,36 +607,203 @@ class School
             cerr << "Teacher not found with ID: " << id << endl;
         }
 
-        vector<Student> searchStudent(RequestSearchStudent request)
+        void addSchedule()
         {
-            vector<Student> result;
+            string classTitle, subjectTitle, teacherId, day, time, practicumInput;
+            bool practicum;
+
+            cout << "Enter class title: ";
+            cin.ignore();
+            getline(cin, classTitle);
+
+            _Class* _class = nullptr;
+            for (_Class &check_class : classes)
+            {
+                if (check_class.getTitle() == classTitle)
+                {
+                    _class = &check_class;
+                    break;
+                }
+            }
+
+            if (_class == nullptr) {
+                cout << "Canceling add schedule. Class " << classTitle << " not found." << endl;
+                return;
+            }
+
+            cout << "Enter subject title: ";
+            getline(cin, subjectTitle);
+
+            Subject* subject = nullptr;
+            for (Subject &check_subject : subjects)
+            {
+                if (check_subject.getTitle() == subjectTitle)
+                {
+                    subject = &check_subject;
+                    break;
+                }
+            }
+
+            if (subject == nullptr) {
+                cout << "Canceling add schedule. Subject " << subjectTitle << " not found." << endl;
+                return;
+            }
+
+            cout << "Enter teacher ID: ";
+            getline(cin, teacherId);
+
+            Teacher* teacher = nullptr;
+            for (Teacher &check_teacher : teachers)
+            {
+                if (check_teacher.getId() == teacherId)
+                {
+                    teacher = &check_teacher;
+                    break;
+                }
+            }
+
+            if (teacher == nullptr) {
+                cout << "Canceling add schedule. Teacher with ID " << teacherId << " not found." << endl;
+                return;
+            }
+
+            cout << "Enter day: ";
+            getline(cin, day);
+
+            cout << "Enter time: ";
+            getline(cin, time);
+
+            cout << "Is this a practicum? (yes/no): ";
+            getline(cin, practicumInput);
+            practicum = (practicumInput == "yes");
+
+            schedules.push_back(Schedule(*_class, *subject, *teacher, day, time, practicum));
+        }
+
+        void editSchedule()
+        {
+            string classTitle, subjectTitle, teacherId, day, time, practicumInput, searchClass, searchSubject;
+            bool practicum;
+
+            cout << "Enter class title of the schedule to edit: ";
+            cin.ignore();
+            getline(cin, searchClass);
+
+            cout << "Enter subject title of the schedule to edit: ";
+            getline(cin, searchSubject);
+
+            Schedule* scheduleToEdit = nullptr;
+            for (auto &schedule : schedules)
+            {
+                if (schedule.getClass().getTitle() == searchClass && schedule.getSubject().getTitle() == searchSubject)
+                {
+                    scheduleToEdit = &schedule;
+                    break;
+                }
+            }
+
+            if (scheduleToEdit == nullptr) {
+                cout << "Canceling edit schedule. Schedule for class " << searchClass << " and subject " << searchSubject << " not found." << endl;
+                return;
+            }
+
+            cout << "Enter new class title: ";
+            getline(cin, classTitle);
+
+            _Class* _class = nullptr;
+            for (_Class &check_class : classes)
+            {
+                if (check_class.getTitle() == classTitle)
+                {
+                    _class = &check_class;
+                    break;
+                }
+            }
+
+            if (_class == nullptr) {
+                cout << "Canceling edit schedule. Class " << classTitle << " not found." << endl;
+                return;
+            }
+
+            cout << "Enter new subject title: ";
+            getline(cin, subjectTitle);
+
+            Subject* subject = nullptr;
+            for (Subject &check_subject : subjects)
+            {
+                if (check_subject.getTitle() == subjectTitle)
+                {
+                    subject = &check_subject;
+                    break;
+                }
+            }
+
+            if (subject == nullptr) {
+                cout << "Canceling edit schedule. Subject " << subjectTitle << " not found." << endl;
+                return;
+            }
+
+            cout << "Enter new teacher ID: ";
+            getline(cin, teacherId);
+
+            Teacher* teacher = nullptr;
+            for (Teacher &check_teacher : teachers)
+            {
+                if (check_teacher.getId() == teacherId)
+                {
+                    teacher = &check_teacher;
+                    break;
+                }
+            }
+
+            if (teacher == nullptr) {
+                cout << "Canceling edit schedule. Teacher with ID " << teacherId << " not found." << endl;
+                return;
+            }
+
+            cout << "Enter new day: ";
+            getline(cin, day);
+
+            cout << "Enter new time: ";
+            getline(cin, time);
+
+            cout << "Is this a practicum? (yes/no): ";
+            getline(cin, practicumInput);
+            practicum = (practicumInput == "yes");
+
+            *scheduleToEdit = Schedule(*_class, *subject, *teacher, day, time, practicum);
+        }
+
+        vector<Student*> searchStudent(RequestSearchStudent request)
+        {
+            vector<Student*> result;
             for (auto &student : students)
             {
                 if (request.name != "" && student.getName() != request.name)
                     continue;
                 if (request.id != "" && student.getId() != request.id)
                     continue;
-                if (request._class != "" && student.getClass().getTitle() != request._class)
+                if (request._class != "" && student.getClass()->getTitle() != request._class)
                     continue;
-                result.push_back(student);
+                result.push_back(&student);
             }
             return result;
         }
 
-        vector<Teacher> searchTeacher(RequestSearchTeacher request)
+        vector<Teacher*> searchTeacher(RequestSearchTeacher request)
         {
-            vector<Teacher> result;
+            vector<Teacher*> result;
             for (auto &teacher : teachers)
             {
                 if (request.name != "" && teacher.getName() != request.name)
                     continue;
                 if (request.id != "" && teacher.getId() != request.id)
                     continue;
-                if (request.subject != "" && teacher.getSubject().getTitle() != request.subject)
+                if (request.subject != "" && teacher.getSubject()->getTitle() != request.subject)
                     continue;
                 if (request.education_level != "" && teacher.getEducationLevel() != request.education_level)
                     continue;
-                result.push_back(teacher);
+                result.push_back(&teacher);
             }
             return result;
         }
@@ -473,40 +841,236 @@ class School
 
             return result;
         }
+
+        void showStudents()
+        {
+            cout << "Students:\n";
+            for (auto& student : students)
+            {
+                student.displayInfo();
+            }
+        }
+
+        void showTeachers()
+        {
+            cout << "Teachers:\n";
+            for (auto& teacher : teachers)
+            {
+                teacher.displayInfo();
+            }
+        }
+
+        void showSchedules()
+        {
+            cout << "Schedules:\n";
+            for (auto& schedule : schedules)
+            {
+                cout << "Class: " << schedule.getClass().getTitle() << ", Subject: " << schedule.getSubject().getTitle() << ", Teacher: " << schedule.getTeacher().getName() << ", Day: " << schedule.getDay() << ", Time: " << schedule.getTime() << ", Practicum: " << (schedule.getPracticum() ? "Yes" : "No") << endl;
+            }
+        }
+
+        void showClasses()
+        {
+            cout << "Classes:\n";
+            for (auto& _class : classes)
+            {
+                cout << "Title: " << _class.getTitle() << endl;
+            }
+        }
+
+        void showSubjects()
+        {
+            cout << "Subjects:\n";
+            for (auto& subject : subjects)
+            {
+                cout << "Title: " << subject.getTitle() << endl;
+            }
+        }
+
+        void searchAndDisplayStudents()
+        {
+            RequestSearchStudent request;
+            cout << "Enter student name to search (or leave empty to skip): ";
+            cin.ignore();
+            getline(cin, request.name);
+            cout << "Enter student ID to search (or leave empty to skip): ";
+            getline(cin, request.id);
+            cout << "Enter class title to search (or leave empty to skip): ";
+            getline(cin, request._class);
+
+            vector<Student*> results = searchStudent(request);
+
+            if (results.empty())
+            {
+                cout << "No students found with the given criteria." << endl;
+            }
+            else
+            {
+                cout << "Search Results:\n";
+                for (auto* student : results)
+                {
+                    student->displayInfo();
+                }
+            }
+        }
+
+        void searchAndDisplayTeachers()
+        {
+            RequestSearchTeacher request;
+            cout << "Enter teacher name to search (or leave empty to skip): ";
+            cin.ignore();
+            getline(cin, request.name);
+            cout << "Enter teacher ID to search (or leave empty to skip): ";
+            getline(cin, request.id);
+            cout << "Enter subject title to search (or leave empty to skip): ";
+            getline(cin, request.subject);
+            cout << "Enter education level to search (or leave empty to skip): ";
+            getline(cin, request.education_level);
+
+            vector<Teacher*> results = searchTeacher(request);
+
+            if (results.empty())
+            {
+                cout << "No teachers found with the given criteria." << endl;
+            }
+            else
+            {
+                cout << "Search Results:\n";
+                for (auto* teacher : results)
+                {
+                    teacher->displayInfo();
+                }
+            }
+        }
+
+        void searchAndDisplaySchedules()
+        {
+            RequestSearchSchedule request;
+            string sortKey, sortOrder;
+            char addSort = 'n';
+            
+            cout << "Enter class title to search (or leave empty to skip): ";
+            cin.ignore();
+            getline(cin, request._class);
+            cout << "Enter subject title to search (or leave empty to skip): ";
+            getline(cin, request.subject);
+
+            do {
+                cout << "Would you like to add sorting criteria? (y/n): ";
+                cin >> addSort;
+                if (addSort == 'y' || addSort == 'Y') {
+                    Sort sort;
+                    cout << "Enter sort key (class/subject): ";
+                    cin >> sort.key;
+                    cout << "Enter sort order (asc/desc): ";
+                    cin >> sortOrder;
+                    sort.asc = (sortOrder == "asc");
+                    request.sort.push_back(sort);
+                }
+            } while (addSort == 'y' || addSort == 'Y');
+
+            vector<Schedule> results = searchSchedule(request);
+
+            if (results.empty())
+            {
+                cout << "No schedules found with the given criteria." << endl;
+            }
+            else
+            {
+                cout << "Search Results:\n";
+                for (auto& schedule : results)
+                {
+                    cout << "Class: " << schedule.getClass().getTitle() << ", Subject: " << schedule.getSubject().getTitle() << ", Teacher: " << schedule.getTeacher().getName() << ", Day: " << schedule.getDay() << ", Time: " << schedule.getTime() << ", Practicum: " << (schedule.getPracticum() ? "Yes" : "No") << endl;
+                }
+            }
+        }
 };
 
 int main()
 {
     School school;
-    school.addClass("10A");
-    school.addClass("10B");
-    school.addSubject("Mathematics");
-    school.addSubject("Physics");
 
-    school.addStudent("John Doe", "S001", "10A");
-    school.addStudent("Jane Smith", "S002", "10B");
-    school.addTeacher("Mr. Johnson", "T001", "Mathematics", "MSc");
-    school.addTeacher("Ms. Parker", "T002", "Physics", "PhD");
-
-    school.editStudent("S001", "Johnathan Doe", "10B");
-    school.editTeacher("T001", "Mr. John Johnson", "Mathematics", "PhD");
-
-    vector<Subject>* subjects = school.getSubjects();
-    Student student = school.getStudents()->at(0);
-    student.addScore(subjects->at(0), 85);
-
-    cout << " CEK " << school.getStudents()->at(0).getAverageScore() << endl;
-
-    auto students = school.searchStudent({ name: "Johnathan Doe"});
-    for (auto &student : students)
+    int choice;
+    bool is_choice = true;
+    while (is_choice)
     {
-        cout << "Student: " << student.getName() << ", ID: " << student.getId() << ", Class: " << student.getClass().getTitle() << ", Average Score: " << student.getAverageScore() << endl;
-    }
+        cout << "\nSchool Management System\n";
+        cout << "1. Add Class\n";
+        cout << "2. Add Subject\n";
+        cout << "3. Add Student\n";
+        cout << "4. Add Teacher\n";
+        cout << "5. Add Schedule\n";
+        cout << "6. Edit Student\n";
+        cout << "7. Edit Teacher\n";
+        cout << "8. Edit Schedule\n";
+        cout << "9. Show Students\n";
+        cout << "10. Show Teachers\n";
+        cout << "11. Show Schedules\n";
+        cout << "12. Show Classes\n";
+        cout << "13. Show Subjects\n";
+        cout << "14. Search Student\n";
+        cout << "15. Search Teacher\n";
+        cout << "16. Search Schedule\n";
+        cout << "0. Exit\n";
+        cout << "Enter your choice: ";
+        cin >> choice;
 
-    auto teachers = school.searchTeacher({"Mr. John Johnson"});
-    for (auto &teacher : teachers)
-    {
-        cout << "Teacher: " << teacher.getName() << ", ID: " << teacher.getId() << ", Subject: " << teacher.getSubject().getTitle() << ", Education Level: " << teacher.getEducationLevel() << endl;
+        switch (choice)
+        {
+            case 1:
+                school.addClass();
+                break;
+            case 2:
+                school.addSubject();
+                break;
+            case 3:
+                school.addStudent();
+                break;
+            case 4:
+                school.addTeacher();
+                break;
+            case 5:
+                school.addSchedule();
+                break;
+            case 6:
+                school.editStudent();
+                break;
+            case 7:
+                school.editTeacher();
+                break;
+            case 8:
+                school.editSchedule();
+                break;
+            case 9:
+                school.showStudents();
+                break;
+            case 10:
+                school.showTeachers();
+                break;
+            case 11:
+                school.showSchedules();
+                break;
+            case 12:
+                school.showClasses();
+                break;
+            case 13:
+                school.showSubjects();
+                break;
+            case 14:
+                school.searchAndDisplayStudents();
+                break;
+            case 15:
+                school.searchAndDisplayTeachers();
+                break;
+            case 16:
+                school.searchAndDisplaySchedules();
+                break;
+            case 0:
+                is_choice = false;
+                break;
+            default:
+                cout << "Invalid choice. Please try again.\n";
+        }
     }
 
     return 0;
